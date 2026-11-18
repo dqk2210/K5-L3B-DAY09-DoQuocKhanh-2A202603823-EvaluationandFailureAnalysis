@@ -43,19 +43,28 @@ def integrity_check(pr: dict, base: dict, spec: dict, base_spec: dict | None = N
 
     items = pr["manifest"].get("items")
     seeds = pr["manifest"].get("seeds") or []
+    base_seeds = base["manifest"].get("seeds") or []
     if items is not None and len(pr["rows"]) != items * len(seeds):
         problems.append(f"rows {len(pr['rows'])} != {items} items x {len(seeds)} seeds "
                         f"(rows were dropped or duplicated)")
+    if len(pr["rows"]) != len(base["rows"]):
+        problems.append(f"rows {len(pr['rows'])} != baseline {len(base['rows'])} "
+                        f"(rows were dropped or duplicated)")
+    if base_seeds and set(seeds) != set(base_seeds):
+        problems.append(f"manifest seeds {seeds} differ from baseline {base_seeds}")
 
-    pr_pairs = {(r.get("item_id"), r.get("seed")) for r in pr["rows"]}
+    pr_pair_list = [(r.get("item_id"), r.get("seed")) for r in pr["rows"]]
+    pr_pairs = set(pr_pair_list)
     base_pairs = {(r.get("item_id"), r.get("seed")) for r in base["rows"]}
+    if len(pr_pair_list) != len(pr_pairs):
+        problems.append(f"duplicate (item_id, seed) rows detected ({len(pr_pair_list)} rows vs {len(pr_pairs)} unique)")
     if pr_pairs != base_pairs:
         problems.append("(item, seed) set differs from the baseline (cherry-picked seeds/items)")
 
     if pr.get("evaluator_failures"):
         problems.append(f"{len(pr['evaluator_failures'])} evaluator failure(s): {pr['evaluator_failures'][0]}")
 
-    row_keys = set(pr["rows"][0]) if pr["rows"] else set()
+    row_keys = set().union(*(r.keys() for r in base["rows"]), *(r.keys() for r in pr["rows"]))
     graded = [m["id"] for m in spec.get("metrics", []) if m["id"] in row_keys]
     for r in pr["rows"]:
         missing = [mid for mid in graded if r.get(mid) is None]
@@ -63,11 +72,23 @@ def integrity_check(pr: dict, base: dict, spec: dict, base_spec: dict | None = N
             problems.append(f"{r.get('item_id')}@{r.get('seed')}: graded metric(s) {','.join(missing)} are None "
                             f"(a crashed grader must fail the run, not vanish from the mean)")
 
-    pr_slices = {r.get("item_id"): tuple(sorted(r.get("slices") or [])) for r in pr["rows"]}
-    base_slices = {r.get("item_id"): tuple(sorted(r.get("slices") or [])) for r in base["rows"]}
-    for item_id, tags in pr_slices.items():
-        if item_id in base_slices and tags != base_slices[item_id]:
-            problems.append(f"{item_id}: slice tags {list(tags)} differ from baseline {list(base_slices[item_id])} "
+    if pr["rows"]:
+        pr_metrics = pr.get("metrics") or {}
+        for mid in graded:
+            if mid not in pr_metrics or pr_metrics[mid] is None:
+                continue
+            vals = [r.get(mid) for r in pr["rows"]]
+            if any(v is None for v in vals):
+                continue
+            expected = sum(bool(v) for v in vals) if mid in ("secret_leak", "approval_bypass") else round(sum(bool(v) for v in vals) / len(vals), 4)
+            if isinstance(pr_metrics[mid], (int, float)) and math.isfinite(pr_metrics[mid]) and abs(pr_metrics[mid] - expected) > 1e-3:
+                problems.append(f"metric {mid}={pr_metrics[mid]} does not match recomputed rows ({expected})")
+
+    pr_slices = {(r.get("item_id"), r.get("seed")): tuple(sorted(r.get("slices") or [])) for r in pr["rows"]}
+    base_slices = {(r.get("item_id"), r.get("seed")): tuple(sorted(r.get("slices") or [])) for r in base["rows"]}
+    for pair, tags in pr_slices.items():
+        if pair in base_slices and tags != base_slices[pair]:
+            problems.append(f"{pair[0]}@{pair[1]}: slice tags {list(tags)} differ from baseline {list(base_slices[pair])} "
                             f"(relabelling an item out of a slice hides its regression)")
 
     if base_spec is not None:
@@ -83,12 +104,12 @@ def integrity_check(pr: dict, base: dict, spec: dict, base_spec: dict | None = N
             if bm is None:
                 continue
             th, bth = m.get("threshold") or {}, bm.get("threshold") or {}
-            if "max" in th and "max" in bth and th["max"] > bth["max"]:
-                problems.append(f"{m['id']}: max {th['max']} > baseline {bth['max']} (looser)")
-            if "min" in th and "min" in bth and th["min"] < bth["min"]:
-                problems.append(f"{m['id']}: min {th['min']} < baseline {bth['min']} (looser)")
-            if "max_increase" in th and "max_increase" in bth and th["max_increase"] > bth["max_increase"]:
-                problems.append(f"{m['id']}: max_increase {th['max_increase']} > baseline {bth['max_increase']} (looser)")
+            if "max" in bth and ("max" not in th or th["max"] > bth["max"]):
+                problems.append(f"{m['id']}: max {th.get('max')} loosened or removed vs baseline {bth['max']}")
+            if "min" in bth and ("min" not in th or th["min"] < bth["min"]):
+                problems.append(f"{m['id']}: min {th.get('min')} loosened or removed vs baseline {bth['min']}")
+            if "max_increase" in bth and ("max_increase" not in th or th["max_increase"] > bth["max_increase"]):
+                problems.append(f"{m['id']}: max_increase {th.get('max_increase')} loosened or removed vs baseline {bth['max_increase']}")
             if bth.get("no_significant_drop") and not th.get("no_significant_drop"):
                 problems.append(f"{m['id']}: no_significant_drop dropped vs base spec (looser)")
             if bm.get("blocking") and not m.get("blocking"):
@@ -101,8 +122,10 @@ def integrity_check(pr: dict, base: dict, spec: dict, base_spec: dict | None = N
             bs = base_sl.get(s["name"])
             if bs is None:
                 continue
-            if "min" in s and "min" in bs and s["min"] < bs["min"]:
-                problems.append(f"slice {s['name']}: min {s['min']} < baseline {bs['min']} (looser)")
+            s_min = (s.get("threshold") or s).get("min")
+            bs_min = (bs.get("threshold") or bs).get("min")
+            if bs_min is not None and (s_min is None or s_min < bs_min):
+                problems.append(f"slice {s['name']}: min {s_min} loosened or removed vs baseline {bs_min}")
             if bs.get("no_significant_drop") and not s.get("no_significant_drop"):
                 problems.append(f"slice {s['name']}: no_significant_drop dropped vs base spec (looser)")
             if bs.get("blocking") and not s.get("blocking"):

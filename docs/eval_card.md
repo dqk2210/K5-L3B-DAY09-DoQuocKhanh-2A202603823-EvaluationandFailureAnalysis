@@ -7,7 +7,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi co
   - v2 baseline: `E-swarm-20261118-e4ef` · eval set v2 sha `e4ef2825dd13` (28 item × 5 seed)
   - PR runs: `E-fixed-20261118-4fcf`, `E-seeded_regression-20261118-4fcf`, `E-slice_regression-20261118-e4ef`
 - **Phiên bản:** code (commit) `e0c4e28` (nhánh `starter/d09`) · eval set v1 (sha `4fcfb131e067`) + v2 (sha `e4ef2825dd13`) · metric_spec `1.0` / `2.0` · grader (commit) `e0c4e28` · seeds 11/22/33/44/55
-- **Eval set:** v1, 14 item × 5 seed, nguồn lab8_public; nhãn tách riêng `labels_v1.json`. v2 = v1 + 12 item adversarial của giảng viên, split `adversarial`, ánh xạ qua `fm_map.yaml` (`evalset --v2 --check` = 0 problem).
+- **Eval set:** v1, 14 item × 5 seed, nguồn lab8_public; nhãn tách riêng `labels_v1.json`. v2 = v1 + 14 item adversarial của giảng viên (`C-101`..`C-114`), split `adversarial`, ánh xạ qua `fm_map.yaml` (`evalset --v2 --check` = 0 problem).
 - **Metric & ngưỡng** (trích `config/metric_spec.yaml` / `metric_spec_v2.yaml`):
 
   | Metric | Loại | Ngưỡng | Chặn? |
@@ -38,8 +38,8 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi co
   | **Gate** | — | **exit 0 — merge** | **exit 1 — blocked: approval_bypass, refund_amount_correct, reply_amount_matches_ledger, pass_rate** |
 
 - **Mục v2 (Advanced/Expert):**
-  - **A/A noise floor:** chạy `swarm` trên 2 bộ seed (11/22/33/44/55 vs 66/77/88/99/110), MockLLM deterministic ⇒ **Δ = 0.0000 trên mọi metric** (pass_hat_5 0.8929 cả hai). Sàn `pass_hat_5` = 0.85 được chọn **ngoài** dải nhiễu (cách baseline 0.043, cách flaky 0.32). Với LLM thật dải A/A > 0: quy tắc là floor = baseline − tối đa 2×dải nhiễu, không bao giờ hạ floor tới khi gate "bắt được" lỗi.
-  - **Slice nào bắt lỗi nào:** `slice_regression` (cộng clause ở seed lẻ trên đơn O-515) có pass_rate 0.9357 — vẫn trên sàn 0.85 và CI chạm 0 — **chỉ slice `money_movement/refund_amount_correct` = 0.90 < 0.95 chặn được** (exit 1, lý do duy nhất `slice:money_movement/refund_amount_correct`). `flaky_regression` (làm tròn sai 1/5 seed) bị chặn bởi `pass_hat_5` (và pass_rate CI) — `pass_rate` trung bình 0.915 không chặn ổn định được bug 1/5 seed.
+  - **A/A noise floor:** chạy `swarm` trên 2 bộ seed (11/22/33/44/55 vs 66/77/88/99/110), MockLLM deterministic ⇒ **Δ = 0.0000 trên mọi metric** (pass_hat_5 0.8929 cả hai). Sàn `pass_hat_5` = 0.85 được chọn **ngoài** dải nhiễu (cách baseline 0.043, cách flaky 0.279 — flaky đạt `pass_hat_5` = 0.5714). Với LLM thật dải A/A > 0: quy tắc là floor = baseline − tối đa 2×dải nhiễu, không bao giờ hạ floor tới khi gate "bắt được" lỗi.
+  - **Slice nào bắt lỗi nào:** `slice_regression` (cộng clause ở seed lẻ trên đơn O-515) có pass_rate 0.9357 — vẫn trên sàn 0.85 và CI chạm 0 — **chỉ slice `money_movement/refund_amount_correct` = 0.850 < 0.95 (Δ −0.150, CI [−0.300, +0.000]) chặn được** (exit 1, lý do duy nhất `slice:money_movement/refund_amount_correct`). `flaky_regression` (làm tròn sai 1/5 seed) bị chặn bởi `pass_hat_5` = 0.5714 (và `pass_rate` CI, slice `money_movement`) — `pass_rate` trung bình 0.9143 vẫn trên sàn 0.85 nên không thể dựa vào ngưỡng sàn `pass_rate` để chặn bug 1/5 seed.
   - **Scorecard** `lab9.mutation`: fixed/honest_refactor = merge, seeded/slice/flaky = block ⇒ **3/3 regression bị chặn, 0 báo nhầm (exit 0)**.
   - **Integrity (M7):** cả 4 trap công khai bị chặn exit 1 — `evaluator_errors_as_nan`, `dropped_failing_rows`, `cherry_picked_seeds` (integrity_check: NaN, số dòng, tập (item, seed)), `loosened_spec` (ratchet với `--base-spec`). Grader của tôi: detection 100% (≥80%), false alarms 0% (≤10%).
   - **Giới hạn cỡ mẫu:** bug chỉ xuất hiện ở 1/3 seed (kịch bản `rare` của instructor) không phát hiện ổn định với 5 seed — pass^5 chỉ nhìn thấy bug khi nó chạm ≥1 trong 5 seed cố định; nêu rõ trong PR thay vì hạ ngưỡng.
