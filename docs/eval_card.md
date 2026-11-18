@@ -3,10 +3,10 @@
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi con số lấy từ report do `lab9.eval` sinh (không sửa tay), ngày chạy 2026-11-18.
 
 - **Run ID / eval set SHA:**
-  - v1 baseline: `E-swarm-20261118-4fcf` · eval set v1 sha `4fcfb131e067` (14 item × 5 seed)
-  - v2 baseline: `E-swarm-20261118-e4ef` · eval set v2 sha `e4ef2825dd13` (28 item × 5 seed)
-  - PR runs: `E-fixed-20261118-4fcf`, `E-seeded_regression-20261118-4fcf`, `E-slice_regression-20261118-e4ef`
-- **Phiên bản:** code (commit) `e0c4e28` (nhánh `starter/d09`) · eval set v1 (sha `4fcfb131e067`) + v2 (sha `e4ef2825dd13`) · metric_spec `1.0` / `2.0` · grader (commit) `e0c4e28` · seeds 11/22/33/44/55
+  - v1 baseline: `E-swarm-20261118-c7b9` · eval set v1 sha `c7b9a5403f7b` (14 item × 5 seed)
+  - v2 baseline: `E-swarm-20261118-619a` · eval set v2 sha `619aff2fbe68` (28 item × 5 seed)
+  - PR runs: `E-fixed-20261118-c7b9`, `E-seeded_regression-20261118-c7b9`, `E-slice_regression-20261118-619a`
+- **Phiên bản:** code (commit) `e0c4e28` (nhánh `starter/d09`) · eval set v1 (sha `c7b9a5403f7b`) + v2 (sha `619aff2fbe68`) · metric_spec `1.0` / `2.0` · grader (commit) `e0c4e28` · seeds 11/22/33/44/55
 - **Eval set:** v1, 14 item × 5 seed, nguồn lab8_public; nhãn tách riêng `labels_v1.json`. v2 = v1 + 14 item adversarial của giảng viên (`C-101`..`C-114`), split `adversarial`, ánh xạ qua `fm_map.yaml` (`evalset --v2 --check` = 0 problem).
 - **Metric & ngưỡng** (trích `config/metric_spec.yaml` / `metric_spec_v2.yaml`):
 
